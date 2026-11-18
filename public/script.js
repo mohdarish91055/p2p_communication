@@ -1,3 +1,30 @@
+let callTimerInterval;
+let secondsElapsed = 0;
+
+function startCallTimer() {
+  secondsElapsed = 0;
+  const timerElem = document.getElementById("callTimer");
+  timerElem.style.display = "inline";
+  timerElem.textContent = "00:00";
+
+  clearInterval(callTimerInterval);
+  callTimerInterval = setInterval(() => {
+    secondsElapsed++;
+    const mins = Math.floor(secondsElapsed / 60)
+      .toString()
+      .padStart(2, "0");
+    const secs = (secondsElapsed % 60).toString().padStart(2, "0");
+    timerElem.textContent = `${mins}:${secs}`;
+  }, 1000);
+}
+
+function stopCallTimer() {
+  clearInterval(callTimerInterval);
+  const timerElem = document.getElementById("callTimer");
+  timerElem.style.display = "none";
+  secondsElapsed = 0;
+}
+
 const socket = io();
 
 const localVideo = document.getElementById("localVideo");
@@ -104,6 +131,7 @@ socket.on("offer", async ({ sender, offer }) => {
   await peerConnection.setLocalDescription(answer);
   socket.emit("answer", { target: sender, answer });
   statusText.textContent = "Connected!";
+  startCallTimer();
 });
 
 socket.on("answer", async ({ answer }) => {
@@ -181,3 +209,14 @@ cameraBtn.addEventListener("click", () => {
   videoTrack.enabled = !videoTrack.enabled;
   cameraBtn.textContent = videoTrack.enabled ? "Camera Off" : "Camera On";
 });
+
+function resetCallState() {
+  if (peerConnection) {
+    peerConnection.close();
+    peerConnection = null;
+  }
+  remoteVideo.srcObject = null;
+  disconnectBtn.style.display = "none";
+  remoteSocketId = null;
+  stopCallTimer(); // Stop the timer when call ends
+}
