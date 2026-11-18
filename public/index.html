@@ -7,30 +7,20 @@
   </head>
   <body>
     <div class="app-container">
-      <!-- Left / Main Section: Videos & Controls -->
       <div class="main-section">
-        <h1>P2P Video & Chat</h1>
+        <h1>P2P Video Call</h1>
 
         <div class="room-control">
           <input type="text" id="roomId" placeholder="Enter Room ID" />
-          <button id="joinRoom">Join Room</button>
+          <button id="joinRoom">Join</button>
         </div>
 
-        <p id="status">
-          Not connected
-          <span
-            id="callTimer"
-            style="
-              display: none;
-              margin-left: 10px;
-              font-weight: bold;
-              color: #10b981;
-            "
-            >00:00</span
-          >
-        </p>
+        <!-- Separated Status & Timer so text doesn't wipe out the timer -->
+        <div class="status-container">
+          <span id="status">Not connected</span>
+          <span id="callTimer" class="timer" style="display: none">00:00</span>
+        </div>
 
-        <!-- Video Container (Big Remote / Small Local PiP) -->
         <div class="video-container">
           <video id="remoteVideo" autoplay playsinline></video>
           <video
@@ -44,23 +34,18 @@
 
         <div class="controls">
           <button id="startCamera">Start Camera</button>
-          <button id="muteBtn">Mute</button>
-          <button id="cameraBtn">Camera Off</button>
-          <button id="toggleChatBtn">Chat</button>
-          <button id="disconnectBtn" style="display: none">Disconnect</button>
+          <button id="flipCameraBtn" style="display: none">Flip Camera</button>
+          <button id="muteBtn" style="display: none">Mute</button>
+          <button id="cameraBtn" style="display: none">Cam Off</button>
+          <button id="disconnectBtn" style="display: none">End</button>
         </div>
       </div>
 
-      <!-- Right Section: Chat Panel -->
-      <div id="chatSidebar" class="chat-sidebar">
-        <h3>Room Chat</h3>
+      <div class="chat-sidebar">
+        <h3>Chat</h3>
         <div id="chatMessages" class="chat-messages"></div>
         <div class="chat-input-area">
-          <input
-            type="text"
-            id="messageInput"
-            placeholder="Type a message..."
-          />
+          <input type="text" id="messageInput" placeholder="Type message..." />
           <button id="sendMsgBtn">Send</button>
         </div>
       </div>

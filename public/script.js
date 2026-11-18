@@ -1,5 +1,6 @@
 let callTimerInterval;
 let secondsElapsed = 0;
+let usingFrontCamera = true;
 
 function startCallTimer() {
   secondsElapsed = 0;
@@ -30,6 +31,7 @@ const socket = io();
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
 const startCamera = document.getElementById("startCamera");
+const flipCameraBtn = document.getElementById("flipCameraBtn");
 const joinRoomBtn = document.getElementById("joinRoom");
 const roomIdInput = document.getElementById("roomId");
 const statusText = document.getElementById("status");
@@ -37,7 +39,6 @@ const muteBtn = document.getElementById("muteBtn");
 const cameraBtn = document.getElementById("cameraBtn");
 const disconnectBtn = document.getElementById("disconnectBtn");
 
-// Chat Elements
 const chatMessages = document.getElementById("chatMessages");
 const messageInput = document.getElementById("messageInput");
 const sendMsgBtn = document.getElementById("sendMsgBtn");
@@ -58,11 +59,50 @@ startCamera.addEventListener("click", async () => {
       audio: true,
     });
     localVideo.srcObject = localStream;
-    statusText.textContent = "Camera started. Enter Room ID and join.";
+    statusText.textContent = "Camera active. Enter Room ID & join.";
     startCamera.style.display = "none";
+    flipCameraBtn.style.display = "inline-block";
+    muteBtn.style.display = "inline-block";
+    cameraBtn.style.display = "inline-block";
   } catch (error) {
-    console.error("Media access error:", error);
-    statusText.textContent = "Error: " + error.name;
+    console.error("Media error:", error);
+    statusText.textContent = "Camera error: " + error.name;
+  }
+});
+
+// Flip Camera (Front / Rear)
+flipCameraBtn.addEventListener("click", async () => {
+  if (!localStream) return;
+  usingFrontCamera = !usingFrontCamera;
+
+  try {
+    // Stop current video track
+    localStream.getVideoTracks().forEach((track) => track.stop());
+
+    const newStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: usingFrontCamera ? "user" : "environment" },
+      audio: true,
+    });
+
+    const newVideoTrack = newStream.getVideoTracks()[0];
+
+    // Replace track in localStream
+    const oldVideoTrack = localStream.getVideoTracks()[0];
+    localStream.removeTrack(oldVideoTrack);
+    localStream.addTrack(newVideoTrack);
+    localVideo.srcObject = localStream;
+
+    // If connected in a call, update the peer connection track as well
+    if (peerConnection) {
+      const sender = peerConnection
+        .getSenders()
+        .find((s) => s.track && s.track.kind === "video");
+      if (sender) {
+        sender.replaceTrack(newVideoTrack);
+      }
+    }
+  } catch (err) {
+    console.error("Error flipping camera:", err);
   }
 });
 
@@ -106,13 +146,13 @@ function createPeerConnection(targetSocketId) {
   peerConnection.onconnectionstatechange = () => {
     if (peerConnection.connectionState === "connected") {
       statusText.textContent = "Connected!";
-      startCallTimer(); // Starts timer for both sides
+      startCallTimer();
     } else if (
       peerConnection.connectionState === "disconnected" ||
       peerConnection.connectionState === "failed" ||
       peerConnection.connectionState === "closed"
     ) {
-      statusText.textContent = "Call disconnected.";
+      statusText.textContent = "Disconnected.";
       resetCallState();
     }
   };
@@ -133,7 +173,7 @@ socket.on("room-joined", async (existingUserId) => {
 });
 
 socket.on("user-joined", (newUserId) => {
-  statusText.textContent = "User joined! Waiting for connection...";
+  statusText.textContent = "User joined! Waiting...";
   remoteSocketId = newUserId;
 });
 
@@ -145,7 +185,6 @@ socket.on("offer", async ({ sender, offer }) => {
   await peerConnection.setLocalDescription(answer);
   socket.emit("answer", { target: sender, answer });
   statusText.textContent = "Connected!";
-  //   startCallTimer();
 });
 
 socket.on("answer", async ({ answer }) => {
@@ -159,20 +198,18 @@ socket.on("ice-candidate", async ({ candidate }) => {
   }
 });
 
-// 4. Chat Message Sending & Receiving
+// 4. Chat Messages
 sendMsgBtn.addEventListener("click", () => {
   const text = messageInput.value.trim();
   if (!text || !remoteSocketId) return;
 
-  // Send via socket to specific remote user
   socket.emit("send-message", { target: remoteSocketId, message: text });
-
   appendMessage("You: " + text, "outgoing");
   messageInput.value = "";
 });
 
 socket.on("receive-message", ({ sender, message }) => {
-  appendMessage("Received: " + message, "incoming");
+  appendMessage("Peer: " + message, "incoming");
 });
 
 function appendMessage(text, className) {
@@ -183,7 +220,7 @@ function appendMessage(text, className) {
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// 5. Disconnect Logic
+// 5. Disconnect
 disconnectBtn.addEventListener("click", () => {
   socket.emit("leave-room");
   resetCallState();
@@ -199,17 +236,7 @@ socket.on("error-message", (msg) => {
   alert(msg);
 });
 
-function resetCallState() {
-  if (peerConnection) {
-    peerConnection.close();
-    peerConnection = null;
-  }
-  remoteVideo.srcObject = null;
-  disconnectBtn.style.display = "none";
-  remoteSocketId = null;
-}
-
-// 6. Mute & Camera Controls
+// 6. Mute & Camera Toggle
 muteBtn.addEventListener("click", () => {
   if (!localStream) return;
   const audioTrack = localStream.getAudioTracks()[0];
@@ -221,7 +248,7 @@ cameraBtn.addEventListener("click", () => {
   if (!localStream) return;
   const videoTrack = localStream.getVideoTracks()[0];
   videoTrack.enabled = !videoTrack.enabled;
-  cameraBtn.textContent = videoTrack.enabled ? "Camera Off" : "Camera On";
+  cameraBtn.textContent = videoTrack.enabled ? "Cam Off" : "Cam On";
 });
 
 function resetCallState() {
@@ -232,5 +259,5 @@ function resetCallState() {
   remoteVideo.srcObject = null;
   disconnectBtn.style.display = "none";
   remoteSocketId = null;
-  stopCallTimer(); // Stop the timer when call ends
+  stopCallTimer();
 }
