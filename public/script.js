@@ -102,6 +102,20 @@ function createPeerConnection(targetSocketId) {
       });
     }
   };
+
+  peerConnection.onconnectionstatechange = () => {
+    if (peerConnection.connectionState === "connected") {
+      statusText.textContent = "Connected!";
+      startCallTimer(); // Starts timer for both sides
+    } else if (
+      peerConnection.connectionState === "disconnected" ||
+      peerConnection.connectionState === "failed" ||
+      peerConnection.connectionState === "closed"
+    ) {
+      statusText.textContent = "Call disconnected.";
+      resetCallState();
+    }
+  };
 }
 
 // Socket Signaling Events
@@ -131,7 +145,7 @@ socket.on("offer", async ({ sender, offer }) => {
   await peerConnection.setLocalDescription(answer);
   socket.emit("answer", { target: sender, answer });
   statusText.textContent = "Connected!";
-  startCallTimer();
+  //   startCallTimer();
 });
 
 socket.on("answer", async ({ answer }) => {
