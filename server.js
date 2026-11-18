@@ -1,4 +1,3 @@
-
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -10,83 +9,84 @@ const io = new Server(server);
 app.use(express.static("public"));
 
 io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
 
-    console.log("User connected:", socket.id);
+  socket.on("join-room", async (roomId) => {
+    if (typeof roomId !== "string" || !roomId.trim()) {
+      socket.emit("error-message", "Invalid room ID");
+      return;
+    }
 
-    socket.on("join-room", async (roomId) => {
+    const room = roomId.trim();
 
-        if (typeof roomId !== "string" || !roomId.trim()) {
-            socket.emit("error-message", "Invalid room ID");
-            return;
-        }
+    const existingUsers = await io.in(room).fetchSockets();
 
-        const room = roomId.trim();
+    // Allow maximum two users
+    if (existingUsers.length >= 2) {
+      socket.emit("error-message", "Room is full");
+      return;
+    }
 
-        const existingUsers = await io.in(room).fetchSockets();
+    socket.join(room);
+    socket.data.roomId = room;
 
-        // Allow maximum two users
-        if (existingUsers.length >= 2) {
-            socket.emit("error-message", "Room is full");
-            return;
-        }
+    console.log(socket.id, "joined", room);
 
-        socket.join(room);
-        socket.data.roomId = room;
+    if (existingUsers.length === 1) {
+      const existingUser = existingUsers[0];
 
-        console.log(socket.id, "joined", room);
+      socket.emit("room-joined", existingUser.id);
 
-        if (existingUsers.length === 1) {
+      existingUser.emit("user-joined", socket.id);
+    } else {
+      socket.emit("waiting", "Waiting for another user");
+    }
+  });
 
-            const existingUser = existingUsers[0];
-
-            socket.emit("room-joined", existingUser.id);
-
-            existingUser.emit("user-joined", socket.id);
-
-        } else {
-
-            socket.emit("waiting", "Waiting for another user");
-
-        }
-
+  // Relay WebRTC signaling messages
+  socket.on("offer", ({ target, offer }) => {
+    io.to(target).emit("offer", {
+      sender: socket.id,
+      offer,
     });
+  });
 
-    // Relay WebRTC signaling messages
-    socket.on("offer", ({ target, offer }) => {
-        io.to(target).emit("offer", {
-            sender: socket.id,
-            offer
-        });
+  socket.on("answer", ({ target, answer }) => {
+    io.to(target).emit("answer", {
+      sender: socket.id,
+      answer,
     });
+  });
 
-    socket.on("answer", ({ target, answer }) => {
-        io.to(target).emit("answer", {
-            sender: socket.id,
-            answer
-        });
+  socket.on("ice-candidate", ({ target, candidate }) => {
+    io.to(target).emit("ice-candidate", {
+      sender: socket.id,
+      candidate,
     });
+  });
 
-    socket.on("ice-candidate", ({ target, candidate }) => {
-        io.to(target).emit("ice-candidate", {
-            sender: socket.id,
-            candidate
-        });
-    });
+  socket.on("disconnect", () => {
+    const room = socket.data.roomId;
 
-    socket.on("disconnect", () => {
+    if (room) {
+      socket.to(room).emit("user-left");
+    }
 
-        const room = socket.data.roomId;
+    console.log("User disconnected:", socket.id);
+  });
 
-        if (room) {
-            socket.to(room).emit("user-left");
-        }
-
-        console.log("User disconnected:", socket.id);
-
-    });
-
+  socket.on("leave-room", () => {
+    const room = socket.data.roomId;
+    if (room) {
+      socket.to(room).emit("user-left");
+      socket.leave(room);
+      socket.data.roomId = null;
+    }
+  });
 });
 
-server.listen(3000, () => {
-    console.log("Server running on port 3000");
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

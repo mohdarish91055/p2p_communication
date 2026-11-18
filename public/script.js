@@ -8,154 +8,154 @@ const roomIdInput = document.getElementById("roomId");
 const statusText = document.getElementById("status");
 const muteBtn = document.getElementById("muteBtn");
 const cameraBtn = document.getElementById("cameraBtn");
+const disconnectBtn = document.getElementById("disconnectBtn");
 
 let localStream;
 let peerConnection;
 let remoteSocketId;
 
-// Free Google STUN server to help browsers find each other's network path
 const rtcConfig = {
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
 // 1. Start Camera & Microphone
 startCamera.addEventListener("click", async () => {
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
-        });
-        localVideo.srcObject = localStream;
-        statusText.textContent = "Camera started. Enter a Room ID and click Join Room.";
-    } catch (error) {
-        console.error("Media access error:", error);
-        statusText.textContent = "Error accessing camera/microphone.";
-    }
-});
-
-// 2. Join a Room
-joinRoomBtn.addEventListener("click", () => {
-    const roomId = roomIdInput.value.trim();
-    if (!localStream) {
-        alert("Please click 'Start Camera' first!");
-        return;
-    }
-    if (!roomId) {
-        alert("Please enter a Room ID!");
-        return;
-    }
-    socket.emit("join-room", roomId);
-});
-
-// 3. Create the WebRTC Peer Connection
-function createPeerConnection(targetSocketId) {
-    remoteSocketId = targetSocketId;
-    peerConnection = new RTCPeerConnection(rtcConfig);
-
-    // Push our camera/mic tracks into the connection
-    localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: true,
     });
+    localVideo.srcObject = localStream;
+    statusText.textContent = "Camera started. Enter Room ID and click Join.";
+    startCamera.style.display = "none"; // Hide after starting
+  } catch (error) {
+    console.error("Media access error:", error);
+    statusText.textContent = "Error: " + error.name;
+  }
+});
 
-    // When the other user's video/audio arrives, show it in remoteVideo
-    peerConnection.ontrack = (event) => {
-        remoteVideo.srcObject = event.streams[0];
-    };
+// 2. Join Room
+joinRoomBtn.addEventListener("click", () => {
+  const roomId = roomIdInput.value.trim();
+  if (!localStream) {
+    alert("Please click 'Start Camera' first!");
+    return;
+  }
+  if (!roomId) {
+    alert("Please enter a Room ID!");
+    return;
+  }
+  socket.emit("join-room", roomId);
+  disconnectBtn.style.display = "inline-block";
+});
 
-    // Send network path (ICE candidate) to the other user via Socket.io
-    peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-            socket.emit("ice-candidate", {
-                target: remoteSocketId,
-                candidate: event.candidate
-            });
-        }
-    };
+// 3. Create Peer Connection
+function createPeerConnection(targetSocketId) {
+  remoteSocketId = targetSocketId;
+  peerConnection = new RTCPeerConnection(rtcConfig);
+
+  localStream.getTracks().forEach((track) => {
+    peerConnection.addTrack(track, localStream);
+  });
+
+  peerConnection.ontrack = (event) => {
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      socket.emit("ice-candidate", {
+        target: remoteSocketId,
+        candidate: event.candidate,
+      });
+    }
+  };
 }
 
-// 4. Socket.io Signaling Events (Matching your server.js)
+// Socket Signaling Events
 socket.on("waiting", (msg) => {
-    statusText.textContent = msg;
+  statusText.textContent = msg;
 });
 
-// Fires for the 2nd user who joins the room (they create the Offer)
 socket.on("room-joined", async (existingUserId) => {
-    statusText.textContent = "User found! Connecting...";
-    createPeerConnection(existingUserId);
+  statusText.textContent = "Connecting to user...";
+  createPeerConnection(existingUserId);
 
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
 
-    socket.emit("offer", {
-        target: existingUserId,
-        offer: offer
-    });
+  socket.emit("offer", { target: existingUserId, offer });
 });
 
-// Fires for the 1st user when the 2nd user joins
 socket.on("user-joined", (newUserId) => {
-    statusText.textContent = "Another user joined! Waiting for offer...";
-    remoteSocketId = newUserId;
+  statusText.textContent = "User joined! Waiting for connection...";
+  remoteSocketId = newUserId;
 });
 
-// Receive Offer -> Send Answer
 socket.on("offer", async ({ sender, offer }) => {
-    createPeerConnection(sender);
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+  createPeerConnection(sender);
+  await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
 
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
+  const answer = await peerConnection.createAnswer();
+  await peerConnection.setLocalDescription(answer);
 
-    socket.emit("answer", {
-        target: sender,
-        answer: answer
-    });
-    statusText.textContent = "Connected!";
+  socket.emit("answer", { target: sender, answer });
+  statusText.textContent = "Connected!";
 });
 
-// Receive Answer
 socket.on("answer", async ({ answer }) => {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-    statusText.textContent = "Connected!";
+  await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+  statusText.textContent = "Connected!";
 });
 
-// Receive ICE Candidate
 socket.on("ice-candidate", async ({ candidate }) => {
-    if (peerConnection) {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-    }
+  if (peerConnection) {
+    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+  }
 });
 
-// Handle Disconnect & Errors
+// 4. Disconnect Logic
+disconnectBtn.addEventListener("click", () => {
+  hangUp();
+});
+
 socket.on("user-left", () => {
-    statusText.textContent = "Remote user disconnected.";
-    remoteVideo.srcObject = null;
-    if (peerConnection) {
-        peerConnection.close();
-        peerConnection = null;
-    }
+  statusText.textContent = "Remote user disconnected.";
+  resetCallState();
 });
 
 socket.on("error-message", (msg) => {
-    alert(msg);
+  alert(msg);
 });
 
-// 5. Mute / Unmute Microphone
+function hangUp() {
+  socket.emit("leave-room");
+  resetCallState();
+  statusText.textContent = "Call ended.";
+}
+
+function resetCallState() {
+  if (peerConnection) {
+    peerConnection.close();
+    peerConnection = null;
+  }
+  remoteVideo.srcObject = null;
+  disconnectBtn.style.display = "none";
+}
+
+// 5. Mute & Camera Controls
 muteBtn.addEventListener("click", () => {
-    if (!localStream) return;
-    const audioTracks = localStream.getAudioTracks();
-    audioTracks.forEach(track => {
-        track.enabled = !track.enabled;
-    });
-    muteBtn.textContent = audioTracks[0].enabled ? "Mute" : "Unmute";
+  if (!localStream) return;
+  const audioTrack = localStream.getAudioTracks()[0];
+  audioTrack.enabled = !audioTrack.enabled;
+  muteBtn.textContent = audioTrack.enabled ? "Mute" : "Unmute";
 });
 
-// 6. Camera ON / OFF
 cameraBtn.addEventListener("click", () => {
-    if (!localStream) return;
-    const videoTracks = localStream.getVideoTracks();
-    videoTracks.forEach(track => {
-        track.enabled = !track.enabled;
-    });
-    cameraBtn.textContent = videoTracks[0].enabled ? "Turn Camera Off" : "Turn Camera On";
+  if (!localStream) return;
+  const videoTrack = localStream.getVideoTracks()[0];
+  videoTrack.enabled = !videoTrack.enabled;
+  cameraBtn.textContent = videoTrack.enabled
+    ? "Turn Camera Off"
+    : "Turn Camera On";
 });
