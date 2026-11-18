@@ -130,7 +130,7 @@ sendMsgBtn.addEventListener("click", () => {
 });
 
 socket.on("receive-message", ({ sender, message }) => {
-  appendMessage("Peer: " + message, "incoming");
+  appendMessage("" + sender + ": " + message, "incoming");
 });
 
 function appendMessage(text, className) {
