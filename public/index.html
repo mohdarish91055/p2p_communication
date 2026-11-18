@@ -1,0 +1,37 @@
+<!doctype html>
+<html>
+  <head>
+    <title>P2P Calling App</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <h1>P2P Audio & Video Calling</h1>
+
+    <h2>Join Video Call</h2>
+
+    <input type="text" id="roomId" placeholder="Enter Room ID" />
+
+    <button id="joinRoom">Join Room</button>
+
+    <p id="status">Not connected</p>
+
+    <div class="videos">
+      <div>
+        <h3>My Camera</h3>
+        <video id="localVideo" autoplay muted playsinline></video>
+      </div>
+
+      <div>
+        <h3>Remote User</h3>
+        <video id="remoteVideo" autoplay playsinline></video>
+      </div>
+    </div>
+
+    <button id="startCamera">Start Camera</button>
+    <button id="muteBtn">Mute</button>
+    <button id="cameraBtn">Turn Camera Off</button>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
