@@ -1,36 +1,57 @@
 <!doctype html>
 <html>
   <head>
-    <title>P2P Calling App</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>P2P Video Call & Chat</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <h1>P2P Audio & Video Calling</h1>
+    <div class="app-container">
+      <!-- Left / Main Section: Videos & Controls -->
+      <div class="main-section">
+        <h1>P2P Video & Chat</h1>
 
-    <div class="room-control">
-      <input type="text" id="roomId" placeholder="Enter Room ID" />
-      <button id="joinRoom">Join Room</button>
-    </div>
+        <div class="room-control">
+          <input type="text" id="roomId" placeholder="Enter Room ID" />
+          <button id="joinRoom">Join Room</button>
+        </div>
 
-    <p id="status">Not connected</p>
+        <p id="status">Not connected</p>
 
-    <!-- Video Container for Big Remote / Small Local PiP Layout -->
-    <div class="video-container">
-      <video id="remoteVideo" autoplay playsinline></video>
-      <video
-        id="localVideo"
-        autoplay
-        muted
-        playsinline
-        class="pip-video"
-      ></video>
-    </div>
+        <!-- Video Container (Big Remote / Small Local PiP) -->
+        <div class="video-container">
+          <video id="remoteVideo" autoplay playsinline></video>
+          <video
+            id="localVideo"
+            autoplay
+            muted
+            playsinline
+            class="pip-video"
+          ></video>
+        </div>
 
-    <div class="controls">
-      <button id="startCamera">Start Camera</button>
-      <button id="muteBtn">Mute</button>
-      <button id="cameraBtn">Turn Camera Off</button>
-      <button id="disconnectBtn" style="display: none">Disconnect</button>
+        <div class="controls">
+          <button id="startCamera">Start Camera</button>
+          <button id="muteBtn">Mute</button>
+          <button id="cameraBtn">Camera Off</button>
+          <button id="toggleChatBtn">Chat</button>
+          <button id="disconnectBtn" style="display: none">Disconnect</button>
+        </div>
+      </div>
+
+      <!-- Right Section: Chat Panel -->
+      <div id="chatSidebar" class="chat-sidebar">
+        <h3>Room Chat</h3>
+        <div id="chatMessages" class="chat-messages"></div>
+        <div class="chat-input-area">
+          <input
+            type="text"
+            id="messageInput"
+            placeholder="Type a message..."
+          />
+          <button id="sendMsgBtn">Send</button>
+        </div>
+      </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>

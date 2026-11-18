@@ -83,6 +83,14 @@ io.on("connection", (socket) => {
       socket.data.roomId = null;
     }
   });
+
+  // Relay Text Messages
+  socket.on("send-message", ({ target, message }) => {
+    io.to(target).emit("receive-message", {
+      sender: socket.id,
+      message,
+    });
+  });
 });
 
 const PORT = process.env.PORT || 3000;

@@ -10,6 +10,11 @@ const muteBtn = document.getElementById("muteBtn");
 const cameraBtn = document.getElementById("cameraBtn");
 const disconnectBtn = document.getElementById("disconnectBtn");
 
+// Chat Elements
+const chatMessages = document.getElementById("chatMessages");
+const messageInput = document.getElementById("messageInput");
+const sendMsgBtn = document.getElementById("sendMsgBtn");
+
 let localStream;
 let peerConnection;
 let remoteSocketId;
@@ -18,7 +23,7 @@ const rtcConfig = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-// 1. Start Camera & Microphone
+// 1. Start Camera
 startCamera.addEventListener("click", async () => {
   try {
     localStream = await navigator.mediaDevices.getUserMedia({
@@ -26,8 +31,8 @@ startCamera.addEventListener("click", async () => {
       audio: true,
     });
     localVideo.srcObject = localStream;
-    statusText.textContent = "Camera started. Enter Room ID and click Join.";
-    startCamera.style.display = "none"; // Hide after starting
+    statusText.textContent = "Camera started. Enter Room ID and join.";
+    startCamera.style.display = "none";
   } catch (error) {
     console.error("Media access error:", error);
     statusText.textContent = "Error: " + error.name;
@@ -78,12 +83,11 @@ socket.on("waiting", (msg) => {
 });
 
 socket.on("room-joined", async (existingUserId) => {
-  statusText.textContent = "Connecting to user...";
+  statusText.textContent = "Connecting...";
   createPeerConnection(existingUserId);
 
   const offer = await peerConnection.createOffer();
   await peerConnection.setLocalDescription(offer);
-
   socket.emit("offer", { target: existingUserId, offer });
 });
 
@@ -98,7 +102,6 @@ socket.on("offer", async ({ sender, offer }) => {
 
   const answer = await peerConnection.createAnswer();
   await peerConnection.setLocalDescription(answer);
-
   socket.emit("answer", { target: sender, answer });
   statusText.textContent = "Connected!";
 });
@@ -114,9 +117,35 @@ socket.on("ice-candidate", async ({ candidate }) => {
   }
 });
 
-// 4. Disconnect Logic
+// 4. Chat Message Sending & Receiving
+sendMsgBtn.addEventListener("click", () => {
+  const text = messageInput.value.trim();
+  if (!text || !remoteSocketId) return;
+
+  // Send via socket to specific remote user
+  socket.emit("send-message", { target: remoteSocketId, message: text });
+
+  appendMessage("You: " + text, "outgoing");
+  messageInput.value = "";
+});
+
+socket.on("receive-message", ({ sender, message }) => {
+  appendMessage("Peer: " + message, "incoming");
+});
+
+function appendMessage(text, className) {
+  const div = document.createElement("div");
+  div.className = `chat-message ${className}`;
+  div.textContent = text;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// 5. Disconnect Logic
 disconnectBtn.addEventListener("click", () => {
-  hangUp();
+  socket.emit("leave-room");
+  resetCallState();
+  statusText.textContent = "Call ended.";
 });
 
 socket.on("user-left", () => {
@@ -128,12 +157,6 @@ socket.on("error-message", (msg) => {
   alert(msg);
 });
 
-function hangUp() {
-  socket.emit("leave-room");
-  resetCallState();
-  statusText.textContent = "Call ended.";
-}
-
 function resetCallState() {
   if (peerConnection) {
     peerConnection.close();
@@ -141,9 +164,10 @@ function resetCallState() {
   }
   remoteVideo.srcObject = null;
   disconnectBtn.style.display = "none";
+  remoteSocketId = null;
 }
 
-// 5. Mute & Camera Controls
+// 6. Mute & Camera Controls
 muteBtn.addEventListener("click", () => {
   if (!localStream) return;
   const audioTrack = localStream.getAudioTracks()[0];
@@ -155,7 +179,5 @@ cameraBtn.addEventListener("click", () => {
   if (!localStream) return;
   const videoTrack = localStream.getVideoTracks()[0];
   videoTrack.enabled = !videoTrack.enabled;
-  cameraBtn.textContent = videoTrack.enabled
-    ? "Turn Camera Off"
-    : "Turn Camera On";
+  cameraBtn.textContent = videoTrack.enabled ? "Camera Off" : "Camera On";
 });
